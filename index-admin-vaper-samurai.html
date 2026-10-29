@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaper Samurai — Admin</title>
+<style>
+:root{color-scheme:dark;--bg:#101010;--panel:#1c1c1c;--line:#383838;--gold:#e0b33d;--muted:#b9b9b9}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#fff;font:16px Arial,sans-serif}
+main{max-width:1000px;margin:auto;padding:18px}h1,h2,h3{margin-top:0}button,input,textarea,select{font:inherit}
+button{border:0;border-radius:8px;padding:11px 14px;background:var(--gold);color:#151515;font-weight:bold;cursor:pointer}
+button.secondary{background:#333;color:#fff;border:1px solid #555}button.danger{background:#8d2525;color:white}
+button:disabled{opacity:.55;cursor:wait}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin:14px 0}
+#loginPanel{max-width:420px;margin:7vh auto}.field{margin:12px 0}label{display:block;margin-bottom:6px;color:#ddd}
+input,textarea,select{width:100%;padding:11px;border-radius:8px;border:1px solid #555;background:#101010;color:white}
+textarea{min-height:85px;resize:vertical}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+nav{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}nav button.active{outline:2px solid var(--gold)}
+.hidden{display:none!important}.muted{color:var(--muted);font-size:13px}.message{white-space:pre-wrap;overflow-wrap:anywhere}
+.item{padding:13px 0;border-bottom:1px solid #383838}.item:last-child{border-bottom:0}.itemhead{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.item p{margin:7px 0;overflow-wrap:anywhere}.actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.pill{display:inline-block;border:1px solid #555;border-radius:20px;padding:4px 9px;font-size:12px}
+@media(max-width:600px){main{padding:12px}.grid{grid-template-columns:1fr}.panel{padding:14px}}
+</style>
+</head>
+<body>
+<main>
+  <section id="loginPanel" class="panel">
+    <h1>⚔️ Vaper Samurai</h1><h3>Admin Login</h3>
+    <form id="loginForm">
+      <div class="field"><label for="email">E-mel admin</label><input id="email" type="email" autocomplete="username" required></div>
+      <div class="field"><label for="password">Kata laluan</label><input id="password" type="password" autocomplete="current-password" required></div>
+      <button id="loginButton" type="submit">Log masuk</button>
+    </form>
+    <p id="loginMessage" class="message muted">Log masuk menggunakan akaun admin Supabase.</p>
+  </section>
+
+  <section id="dashboard" class="hidden">
+    <div class="itemhead"><div><h1>Vaper Samurai Admin</h1><p id="who" class="muted"></p></div><button id="logoutButton" class="secondary">Log keluar</button></div>
+    <p class="muted">Dashboard ini menyimpan produk dan membaca pesanan daripada Supabase. Ia belum disambungkan kepada paparan kedai asal.</p>
+    <nav>
+      <button class="secondary active" data-tab="products">Produk</button>
+      <button class="secondary" data-tab="orders">Pesanan & pembeli</button>
+    </nav>
+
+    <section id="productsTab">
+      <div class="panel">
+        <h2 id="productFormTitle">Tambah produk</h2>
+        <form id="productForm">
+          <input type="hidden" id="productId">
+          <div class="grid">
+            <div class="field"><label for="productName">Nama produk</label><input id="productName" required maxlength="150"></div>
+            <div class="field"><label for="productPrice">Harga (RM)</label><input id="productPrice" type="number" min="0" step="0.01" required></div>
+          </div>
+          <div class="field"><label for="productDescription">Penerangan</label><textarea id="productDescription"></textarea></div>
+          <div class="field"><label><input id="productActive" type="checkbox" checked style="width:auto"> Produk aktif / dipaparkan</label></div>
+          <div class="actions"><button id="saveProductButton" type="submit">Simpan produk</button><button id="cancelEditButton" type="button" class="secondary">Kosongkan borang</button></div>
+        </form>
+        <p id="productMessage" class="message muted"></p>
+      </div>
+      <div class="panel"><h2>Senarai produk</h2><div id="productList" class="muted">Memuatkan...</div></div>
+    </section>
+
+    <section id="ordersTab" class="hidden">
+      <div class="panel"><div class="itemhead"><h2>Pesanan & detail pembeli</h2><button id="refreshOrders" class="secondary">Muat semula</button></div>
+        <p class="muted">Status yang tersedia: pending, approved, rejected.</p>
+        <div id="orderList" class="muted">Memuatkan...</div>
+      </div>
+    </section>
+  </section>
+</main>
+
+<script type="module">
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPABASE_URL = 'https://lcuvqcxwcdcgyevecotx.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxjdXZxY3h3Y2RjZ3lldmVjb3R4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyOTIwMzksImV4cCI6MjEwODg2ODAzOX0.qPSFWlj89GiamqNz85gw06WyVTSDUM4vp5DhgJezax0';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money = n => 'RM ' + Number(n || 0).toFixed(2);
+let currentUser = null;
+
+function msg(id, text) { $(id).textContent = text || ''; }
+function showDashboard(user) {
+  currentUser = user;
+  $('loginPanel').classList.add('hidden');
+  $('dashboard').classList.remove('hidden');
+  $('who').textContent = user.email || '';
+  loadProducts();
+  loadOrders();
+}
+function showLogin(text='') {
+  $('dashboard').classList.add('hidden');
+  $('loginPanel').classList.remove('hidden');
+  msg('loginMessage', text);
+}
+async function verifyAdmin(user) {
+  const { data, error } = await supabase.from('profiles').select('is_admin').eq('id', user.id).single();
+  if (error || data?.is_admin !== true) {
+    await supabase.auth.signOut();
+    throw new Error('Akaun ini tiada akses admin. Semak rekod profiles.is_admin.');
+  }
+}
+$('loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  $('loginButton').disabled = true;
+  msg('loginMessage','Sedang menyemak akaun...');
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: $('email').value.trim(),
+      password: $('password').value
+    });
+    if (error) throw error;
+    await verifyAdmin(data.user);
+    msg('loginMessage','');
+    showDashboard(data.user);
+  } catch (err) {
+    showLogin('Log masuk gagal: ' + err.message);
+  } finally { $('loginButton').disabled = false; }
+});
+$('logoutButton').addEventListener('click', async () => {
+  await supabase.auth.signOut();
+  currentUser = null;
+  showLogin('Anda telah log keluar.');
+});
+document.querySelectorAll('[data-tab]').forEach(btn => btn.addEventListener('click', () => {
+  document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('active', b === btn));
+  $('productsTab').classList.toggle('hidden', btn.dataset.tab !== 'products');
+  $('ordersTab').classList.toggle('hidden', btn.dataset.tab !== 'orders');
+}));
+
+function resetProductForm() {
+  $('productForm').reset(); $('productId').value = '';
+  $('productActive').checked = true; $('productFormTitle').textContent = 'Tambah produk';
+  $('saveProductButton').textContent = 'Simpan produk'; msg('productMessage','');
+}
+$('cancelEditButton').addEventListener('click', resetProductForm);
+$('productForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!currentUser) return;
+  const id = $('productId').value;
+  const payload = {
+    name: $('productName').value.trim(),
+    description: $('productDescription').value.trim(),
+    price: Number($('productPrice').value),
+    active: $('productActive').checked
+  };
+  $('saveProductButton').disabled = true;
+  msg('productMessage','Menyimpan...');
+  try {
+    const result = id
+      ? await supabase.from('products').update(payload).eq('id', id)
+      : await supabase.from('products').insert(payload);
+    if (result.error) throw result.error;
+    resetProductForm(); msg('productMessage','Produk berjaya disimpan.');
+    await loadProducts();
+  } catch (err) { msg('productMessage','Gagal simpan: ' + err.message); }
+  finally { $('saveProductButton').disabled = false; }
+});
+
+async function loadProducts() {
+  $('productList').textContent = 'Memuatkan produk...';
+  const { data, error } = await supabase.from('products')
+    .select('id,name,description,price,active,created_at').order('created_at', {ascending:false});
+  if (error) { $('productList').textContent = 'Gagal muat produk: ' + error.message; return; }
+  if (!data?.length) { $('productList').textContent = 'Belum ada produk dalam database.'; return; }
+  $('productList').innerHTML = data.map(p => `<article class="item">
+    <div class="itemhead"><strong>${esc(p.name)}</strong><span class="pill">${p.active ? 'Aktif' : 'Tidak aktif'}</span></div>
+    <p>${esc(money(p.price))}</p><p>${esc(p.description || 'Tiada penerangan')}</p>
+    <div class="actions"><button class="secondary" data-edit="${esc(p.id)}">Edit</button><button class="danger" data-delete="${esc(p.id)}">Padam</button></div>
+  </article>`).join('');
+  $('productList').querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => {
+    const p = data.find(x => x.id === btn.dataset.edit); if (!p) return;
+    $('productId').value = p.id; $('productName').value = p.name;
+    $('productDescription').value = p.description || ''; $('productPrice').value = p.price;
+    $('productActive').checked = p.active; $('productFormTitle').textContent = 'Edit produk';
+    $('saveProductButton').textContent = 'Kemas kini produk';
+    window.scrollTo({top:0,behavior:'smooth'});
+  }));
+  $('productList').querySelectorAll('[data-delete]').forEach(btn => btn.addEventListener('click', async () => {
+    if (!confirm('Padam produk ini? Tindakan ini tidak boleh dibuat asal.')) return;
+    const { error } = await supabase.from('products').delete().eq('id', btn.dataset.delete);
+    if (error) alert('Gagal padam: ' + error.message); else await loadProducts();
+  }));
+}
+function fmtDate(v) {
+  try { return new Date(v).toLocaleString('ms-MY'); } catch { return String(v || ''); }
+}
+function formatItems(items) {
+  if (Array.isArray(items)) return items.map(i => `${i.name || i.product_name || i.id || 'Item'} × ${i.qty ?? i.quantity ?? 1}`).join(', ');
+  if (items && typeof items === 'object') return JSON.stringify(items);
+  return String(items || 'Tiada butiran item');
+}
+async function loadOrders() {
+  $('orderList').textContent = 'Memuatkan pesanan...';
+  const { data, error } = await supabase.from('orders')
+    .select('id,customer_name,customer_phone,customer_address,customer_note,items,total,status,created_at')
+    .order('created_at', {ascending:false});
+  if (error) { $('orderList').textContent = 'Gagal muat pesanan: ' + error.message; return; }
+  if (!data?.length) { $('orderList').textContent = 'Belum ada pesanan dalam database.'; return; }
+  $('orderList').innerHTML = data.map(o => `<article class="item">
+    <div class="itemhead"><strong>Pesanan #${esc(o.id)}</strong><span class="pill">${esc(o.status)}</span></div>
+    <p><strong>Tarikh:</strong> ${esc(fmtDate(o.created_at))}</p>
+    <p><strong>Nama pembeli:</strong> ${esc(o.customer_name)}</p>
+    <p><strong>Telefon:</strong> ${esc(o.customer_phone)}</p>
+    <p><strong>Alamat:</strong> ${esc(o.customer_address)}</p>
+    <p><strong>Nota:</strong> ${esc(o.customer_note || '-')}</p>
+    <p><strong>Barang:</strong> ${esc(formatItems(o.items))}</p>
+    <p><strong>Jumlah:</strong> ${esc(money(o.total))}</p>
+    <div class="grid"><div class="field"><label for="status-${esc(o.id)}">Status pesanan</label>
+      <select id="status-${esc(o.id)}"><option value="pending" ${o.status==='pending'?'selected':''}>pending</option><option value="approved" ${o.status==='approved'?'selected':''}>approved</option><option value="rejected" ${o.status==='rejected'?'selected':''}>rejected</option></select>
+    </div><div class="field" style="align-self:end"><button data-status="${esc(o.id)}">Simpan status</button></div></div>
+    <p class="message muted" id="status-message-${esc(o.id)}"></p>
+  </article>`).join('');
+  $('orderList').querySelectorAll('[data-status]').forEach(btn => btn.addEventListener('click', async () => {
+    const id = btn.dataset.status;
+    const status = $('status-' + id).value;
+    const out = $('status-message-' + id);
+    btn.disabled = true; out.textContent = 'Menyimpan status...';
+    const { error } = await supabase.from('orders').update({status}).eq('id', id);
+    btn.disabled = false;
+    if (error) out.textContent = 'Tak berjaya. Semak polisi UPDATE admin untuk orders: ' + error.message;
+    else { out.textContent = 'Status berjaya dikemas kini.'; await loadOrders(); }
+  }));
+}
+$('refreshOrders').addEventListener('click', loadOrders);
+const { data: sessionData } = await supabase.auth.getSession();
+if (sessionData.session?.user) {
+  try { await verifyAdmin(sessionData.session.user); showDashboard(sessionData.session.user); }
+  catch (err) { showLogin(err.message); }
+}
+</script>
+</body>
+</html>
