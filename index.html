@@ -1,6 +1,8 @@
-<!DOCTYPE html><html lang="ms">
+
+<!doctype html>
+<html lang="ms">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Vaper Samurai — Admin</title>
   <style>
@@ -12,19 +14,18 @@
       place-items: center;
       padding: 20px;
       background: #101010;
-      color: #f5f5f5;
+      color: #fff;
       font-family: Arial, sans-serif;
     }
-    .panel {
+    main {
       width: 100%;
       max-width: 390px;
       padding: 28px;
-      background: #1c1c1c;
-      border: 1px solid #444;
+      border: 1px solid #383838;
       border-radius: 16px;
+      background: #1b1b1b;
     }
-    h1 { margin-top: 0; font-size: 25px; }
-    p { color: #bbb; line-height: 1.5; }
+    h1 { margin-top: 0; }
     label { display: block; margin: 18px 0 7px; }
     input {
       width: 100%;
@@ -36,35 +37,85 @@
     }
     button {
       width: 100%;
-      margin-top: 20px;
+      margin-top: 22px;
       padding: 13px;
       border: 0;
       border-radius: 8px;
-      background: #d5a33b;
+      background: #e0b33d;
       color: #111;
       font-weight: bold;
     }
-    #message { font-size: 14px; }
+    #message { overflow-wrap: anywhere; }
   </style>
 </head>
 <body>
-  <main class="panel">
-    <h1>侍 Vaper Samurai</h1>
-    <p>Admin Panel</p>
+  <main>
+    <h1>Vaper Samurai</h1>
+    <p>Admin Login</p>
+
     <form id="login">
       <label for="email">E-mel admin</label>
       <input id="email" type="email" autocomplete="username" required>
+
       <label for="password">Kata laluan</label>
-      <input id="password" type="password" autocomplete="current-password" required>
-      <button type="submit">Log masuk</button>
+      <input id="password" type="password"
+        autocomplete="current-password" required>
+
+      <button id="submit" type="submit">Log masuk</button>
     </form>
-    <p id="message">Sambungan login belum dikonfigurasi.</p>
+
+    <p id="message" role="status">Sila log masuk menggunakan akaun admin.</p>
   </main>
-  <script>
-    document.getElementById('login').addEventListener('submit', function(event) {
+
+  <script type="module">
+    import { createClient } from
+      'https://esm.sh/@supabase/supabase-js@2';
+
+    const supabase = createClient(
+      'https://lcuvqcxwcdcgyevecotx.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxjdXZxY3h3Y2RjZ3lldmVjb3R4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMyOTIwMzksImV4cCI6MjEwODg2ODAzOX0.qPSFWlj89GiamqNz85gw06WyVTSDUM4vp5DhgJezax0'
+    );
+
+    const form = document.getElementById('login');
+    const message = document.getElementById('message');
+    const button = document.getElementById('submit');
+
+    form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      document.getElementById('message').textContent =
-        'Login belum disambungkan. Jangan masukkan kata laluan sebenar di halaman ini.';
+      button.disabled = true;
+      message.textContent = 'Sedang menyemak akaun...';
+
+      try {
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (error) throw error;
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', data.user.id)
+          .single();
+
+        if (profileError || profile?.is_admin !== true) {
+          await supabase.auth.signOut();
+          message.textContent =
+            'Akaun ini belum diberikan akses admin.';
+          return;
+        }
+
+        message.textContent =
+          'Login berjaya. Pengesahan admin selesai. Dashboard belum disambungkan.';
+      } catch (error) {
+        message.textContent = 'Login gagal: ' + error.message;
+      } finally {
+        button.disabled = false;
+      }
     });
   </script>
 </body>
